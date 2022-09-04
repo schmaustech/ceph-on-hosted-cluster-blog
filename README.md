@@ -1,0 +1,1 @@
+# ceph-on-hosted-cluster-blog
