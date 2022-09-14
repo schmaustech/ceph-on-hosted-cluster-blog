@@ -232,6 +232,209 @@ spec: {}
 EOF
 ~~~~
 
-~~~bash
+Next we will create the namespace from the customer resource yaml we created above.
 
+~~~bash
+$ oc create -f ~/openshift-storage-namespace.yaml
+namespace/openshift-storage created
 ~~~
+
+With the namespace created we need to create and operator group and a subscription just like we did with the local storage operator.  However this time we will create both from the same resource yaml file.
+
+~~~bash
+$ cat << EOF > ~/openshift-storage-subscription.yaml
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-storage-operatorgroup
+  namespace: openshift-storage
+spec:
+  targetNamespaces:
+  - openshift-storage
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: ocs-operator
+  namespace: openshift-storage
+spec:
+  channel: "stable-4.11"
+  installPlanApproval: Automatic
+  name: odf-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+EOF
+~~~
+
+Lets go ahead and create the operator group and subscription from the file we created:
+
+~~~bash
+$ oc create -f ~/openshift-storage-subscription.yaml
+operatorgroup.operators.coreos.com/openshift-storage-operatorgroup created
+subscription.operators.coreos.com/ocs-operator created
+~~~
+
+With the namespace, openshift-storage operator group and subscription created we should in a few minutes have a successfully running OCS operator in the environment.  We can can confirm the operator is up and running by looking at it from the command line where we should see 4 running pods under the openshift-storage namespace:
+
+~~~bash
+$ oc get pods -n openshift-storage
+NAME                                   READY   STATUS    RESTARTS   AGE
+noobaa-operator-5d47cf4f58-q48z5       1/1     Running   0          54s
+ocs-metrics-exporter-fbd466d84-kxn4n   1/1     Running   0          53s
+ocs-operator-7d7554cd7-5gcmr           1/1     Running   0          54s
+rook-ceph-operator-94cfd97d5-mg57r     1/1     Running   0          54s
+~~~
+
+Now that we know the operator is deployed (and the associated pods are running) we can proceed to creating a hyperconverged OCS cluster.  To do this we first need to create a storage cluster yaml file that will allow us to consume each of the two pvs per worker node that we configured via the local storage operator.
+
+~~~bash
+$ cat << EOF > ~/openshift-storage-cluster.yaml
+apiVersion: ocs.openshift.io/v1
+kind: StorageCluster
+metadata:
+  name: ocs-storagecluster
+  namespace: openshift-storage
+spec:
+  manageNodes: false
+  resources:
+    mds:
+      limits:
+        cpu: "3"
+        memory: "6Gi"
+      requests:
+        cpu: "3"
+        memory: "6Gi"
+  monDataDirHostPath: /var/lib/rook
+  managedResources:
+    cephBlockPools:
+      reconcileStrategy: manage
+    cephFilesystems:
+      reconcileStrategy: manage
+    cephObjectStoreUsers:
+      reconcileStrategy: manage
+    cephObjectStores:
+      reconcileStrategy: manage
+    snapshotClasses:
+      reconcileStrategy: manage
+    storageClasses:
+      reconcileStrategy: manage
+  multiCloudGateway:
+    reconcileStrategy: manage
+  storageDeviceSets:
+  - count: 2
+    dataPVCTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: "120Gi"
+        storageClassName: localblock
+        volumeMode: Block
+    name: ocs-deviceset
+    placement: {}
+    portable: false
+    replica: 3
+    resources:
+      limits:
+        cpu: "2"
+        memory: "5Gi"
+      requests:
+        cpu: "2"
+        memory: "5Gi"
+EOF
+~~~
+
+If we look at the above storage cluster yaml the key things that stand out are the count, the storage size, storageclass and replica.  Because we have 2 pvs on each worker that we want included in our storage cluster from the local storage storage class we set the replica to 3 and the count to 2.   We also specify that we want to use 100Gi pvs from the localblock storage class.  We can also note the resource limits on CPU and memory to ensure that the storage cluster does not use all the resources on the worker nodes.
+
+With the storage cluster yaml created lets go ahead and create the storage cluster:
+
+~~~bash
+[root@ocp4-bastion ~]# oc create -f openshift-storage-cluster.yaml
+storagecluster.ocs.openshift.io/ocs-storagecluster created
+~~~
+
+If we run an oc get pods for the openshift-storage namespace we can see pods are starting to create to build out the storage cluster.  If one wanted to watch this continuously we could throw a watch command in front of the oc command.   It will take a few minutes to instantiate the cluster nevertheless.
+
+~~~bash
+[root@ocp4-bastion ~]# oc get pods -n openshift-storage
+NAME                                            READY   STATUS              RESTARTS   AGE
+csi-cephfsplugin-6lz7d                          0/3     ContainerCreating   0          2s
+csi-cephfsplugin-pmm5g                          0/3     ContainerCreating   0          2s
+csi-cephfsplugin-provisioner-749c5f9766-89vx6   0/6     ContainerCreating   0          2s
+csi-cephfsplugin-provisioner-749c5f9766-ktjg8   0/6     ContainerCreating   0          1s
+csi-cephfsplugin-ptptq                          0/3     ContainerCreating   0          2s
+csi-rbdplugin-5wtcw                             0/3     ContainerCreating   0          3s
+csi-rbdplugin-provisioner-79c88978ff-5b9nm      0/6     ContainerCreating   0          2s
+csi-rbdplugin-provisioner-79c88978ff-s6zwj      0/6     ContainerCreating   0          2s
+csi-rbdplugin-qgthm                             0/3     ContainerCreating   0          3s
+csi-rbdplugin-xrjvq                             0/3     ContainerCreating   0          3s
+noobaa-operator-5d47cf4f58-q48z5                1/1     Running             0          13m
+ocs-metrics-exporter-fbd466d84-kxn4n            1/1     Running             0          13m
+ocs-operator-7d7554cd7-5gcmr                    1/1     Running             0          13m
+rook-ceph-detect-version-cb9v9                  0/1     PodInitializing     0          6s
+rook-ceph-operator-94cfd97d5-mg57r              1/1     Running             0          13m
+~~~
+
+Finally after about 5 minutes we can see all the pods that have been generated to deploy the OCS storage cluster:
+
+~~~bash
+[root@ocp4-bastion ~]# oc get pods -n openshift-storage
+NAME                                                              READY   STATUS      RESTARTS   AGE
+csi-cephfsplugin-6lz7d                                            3/3     Running     0          6m13s
+csi-cephfsplugin-pmm5g                                            3/3     Running     0          6m13s
+csi-cephfsplugin-provisioner-749c5f9766-89vx6                     6/6     Running     0          6m13s
+csi-cephfsplugin-provisioner-749c5f9766-ktjg8                     6/6     Running     0          6m12s
+csi-cephfsplugin-ptptq                                            3/3     Running     0          6m13s
+csi-rbdplugin-5wtcw                                               3/3     Running     0          6m14s
+csi-rbdplugin-provisioner-79c88978ff-5b9nm                        6/6     Running     0          6m13s
+csi-rbdplugin-provisioner-79c88978ff-s6zwj                        6/6     Running     0          6m13s
+csi-rbdplugin-qgthm                                               3/3     Running     0          6m14s
+csi-rbdplugin-xrjvq                                               3/3     Running     0          6m14s
+noobaa-core-0                                                     1/1     Running     0          3m28s
+noobaa-db-0                                                       1/1     Running     0          3m28s
+noobaa-endpoint-8448cb4bcb-qgddv                                  1/1     Running     0          39s
+noobaa-operator-5d47cf4f58-q48z5                                  1/1     Running     0          19m
+ocs-metrics-exporter-fbd466d84-kxn4n                              1/1     Running     0          19m
+ocs-operator-7d7554cd7-5gcmr                                      1/1     Running     0          19m
+rook-ceph-crashcollector-ocp4-worker1.aio.example.com-7556jrn5l   1/1     Running     0          4m14s
+rook-ceph-crashcollector-ocp4-worker2.aio.example.com-5d65n7v7m   1/1     Running     0          5m9s
+rook-ceph-crashcollector-ocp4-worker3.aio.example.com-65d4zvppx   1/1     Running     0          5m27s
+rook-ceph-mds-ocs-storagecluster-cephfilesystem-a-7b87d55f2kfff   1/1     Running     0          3m9s
+rook-ceph-mds-ocs-storagecluster-cephfilesystem-b-5cddbbddp2mkl   1/1     Running     0          3m6s
+rook-ceph-mgr-a-7f796dc664-lxqqg                                  1/1     Running     0          3m51s
+rook-ceph-mon-a-74f59544d8-kkb6m                                  1/1     Running     0          5m27s
+rook-ceph-mon-b-7b5cff9b5f-c5lck                                  1/1     Running     0          5m9s
+rook-ceph-mon-c-5476944976-ggvlq                                  1/1     Running     0          4m14s
+rook-ceph-operator-94cfd97d5-mg57r                                1/1     Running     0          19m
+rook-ceph-osd-0-6b69bb668d-gkjw9                                  1/1     Running     0          3m35s
+rook-ceph-osd-1-5c98954c75-wskr4                                  1/1     Running     0          3m34s
+rook-ceph-osd-2-c998f4d95-5kxdr                                   1/1     Running     0          3m34s
+rook-ceph-osd-3-5575c6d996-cktmk                                  1/1     Running     0          3m33s
+rook-ceph-osd-4-7c7cfb6df-g28mx                                   1/1     Running     0          3m31s
+rook-ceph-osd-5-84b5fffc6c-vczjc                                  1/1     Running     0          3m32s
+rook-ceph-osd-prepare-ocs-deviceset-0-data-0g7jnx-h7pws           0/1     Completed   0          3m49s
+rook-ceph-osd-prepare-ocs-deviceset-0-data-1rvzs6-954f2           0/1     Completed   0          3m49s
+rook-ceph-osd-prepare-ocs-deviceset-1-data-0ffs9p-zqqpp           0/1     Completed   0          3m48s
+rook-ceph-osd-prepare-ocs-deviceset-1-data-1sxx7p-gk65z           0/1     Completed   0          3m48s
+rook-ceph-osd-prepare-ocs-deviceset-2-data-0pp4gm-j27kq           0/1     Completed   0          3m48s
+rook-ceph-osd-prepare-ocs-deviceset-2-data-18bcdc-btf54           0/1     Completed   0          3m47s
+rook-ceph-rgw-ocs-storagecluster-cephobjectstore-a-5d89cb99lbb9   1/1     Running     0          2m33s
+rook-ceph-rgw-ocs-storagecluster-cephobjectstore-b-5bb55f6rhlmx   1/1     Running     0          2m27s
+~~~
+
+We can also confirm this from the command line by issuing an oc get storageclass.  We should see 4 new storageclasses: one for block (rbd), two for object (rgw/nooba) and one for file(cephfs).  
+
+~~~bash
+[root@ocp4-bastion ~]# oc get storageclass
+NAME                          PROVISIONER                             RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+localblock                    kubernetes.io/no-provisioner            Delete          WaitForFirstConsumer   false                  3h4m
+ocs-storagecluster-ceph-rbd   openshift-storage.rbd.csi.ceph.com      Delete          Immediate              true                   6m50s
+ocs-storagecluster-ceph-rgw   openshift-storage.ceph.rook.io/bucket   Delete          Immediate              false                  6m50s
+ocs-storagecluster-cephfs     openshift-storage.cephfs.csi.ceph.com   Delete          Immediate              true                   6m50s
+openshift-storage.noobaa.io   openshift-storage.noobaa.io/obc         Delete          Immediate              false                  70s
+~~~
+
+At this point you have a fully functional OpenShift Container Storage cluster to be consumed by applications. You can optionally deploy the Ceph tools pod, where you can dive into some of the Ceph internals at your leisure:
+
