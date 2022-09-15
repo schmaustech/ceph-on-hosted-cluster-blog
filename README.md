@@ -445,8 +445,144 @@ openshift-storage.noobaa.io             openshift-storage.noobaa.io/obc         
 
 ~~~
 
-At this point you have a fully functional OpenShift Container Storage cluster to be consumed by applications. You can optionally deploy the Ceph tools pod, where you can dive into some of the Ceph internals at your leisure:
+At this point we have a fully functional OpenShift Data Foundation cluster providing block, object and filesystem storage for any applications that require it.
 
 
 ## OpenShift Containerized Virtualization
 
+With the storage installation complete we can move onto depoying OpenShift Containerized Virtualization which will provide us the capability to run virtual machines within a container on our OpenShift hosted cluster.   The following diagram depicts where those virtual machines might run in the environment.
+
+<img src="hosted4.jpeg" style="width: 800px;" border=0/>
+
+The first step for installing OpenShift Containerized Virtualization is to prepare custom resource yaml that will configure the namespace, operator group and subscription to install the operator.
+
+~~~bash
+$ cat << EOF > ~/openshift-cnv-operator-install.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-cnv
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: kubevirt-hyperconverged-group
+  namespace: openshift-cnv
+spec:
+  targetNamespaces:
+    - openshift-cnv
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: hco-operatorhub
+  namespace: openshift-cnv
+spec:
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  name: kubevirt-hyperconverged
+  startingCSV: kubevirt-hyperconverged-operator.v4.11.0
+  channel: "stable"
+EOF
+~~~
+
+With the custom resource yaml created we can now apply it to the hosted cluster.
+
+~~~bash
+$ oc create -f ~/openshift-cnv-operator-install.yaml
+namespace/openshift-cnv created
+operatorgroup.operators.coreos.com/kubevirt-hyperconverged-group created
+subscription.operators.coreos.com/hco-operatorhub created
+~~~
+
+After a few minutes we can see the operator and supporting pods for OpenShift Containerized Virtualization running.
+
+~~~bash
+$ oc get pods -n openshift-cnv
+NAME                                                 READY   STATUS    RESTARTS   AGE
+cdi-operator-d9f68b586-4gwsr                         1/1     Running   0          55s
+cluster-network-addons-operator-5db7476ddc-bpbgh     2/2     Running   0          2m26s
+hco-operator-7c49dc46b7-75c7f                        1/1     Running   0          2m30s
+hco-webhook-6f44f7876c-v5tgt                         1/1     Running   0          2m30s
+hostpath-provisioner-operator-744d67d94-9blsd        1/1     Running   0          53s
+hyperconverged-cluster-cli-download-c5976f57-w7rfn   1/1     Running   0          2m28s
+ssp-operator-7d54856c95-wwsz9                        1/1     Running   0          2m21s
+tekton-tasks-operator-5965f7fb8d-dhz7s               1/1     Running   0          2m19s
+~~~
+
+
+At this point we are now ready to to deploy a hyperconverged configuration for virtualization which will consume the OpenShift Data Foundation storage we configured earlier in the blog.  To configure a hyperconverged deployment we first need to create the following custom resource yaml.
+
+~~~bash
+$ cat << EOF > ~/openshift-cnv-hyperconverged.yaml
+apiVersion: hco.kubevirt.io/v1beta1
+kind: HyperConverged
+metadata:
+  name: kubevirt-hyperconverged
+  namespace: openshift-cnv
+spec:
+EOF
+~~~
+
+Now let's go ahead and apply the hyperconverged configuration yaml to our hosted cluster.
+
+~~~bash
+$ oc create -f openshift-cnv-hyperconverged.yaml
+hyperconverged.hco.kubevirt.io/kubevirt-hyperconverged created
+~~~
+
+After a few minutes all the pods for a hyperconverged deployment should be created.
+
+~~~bash
+$ oc get pods -n openshift-cnv
+NAME                                                 READY   STATUS    RESTARTS   AGE
+bridge-marker-7crpr                                  1/1     Running   0          6m44s
+bridge-marker-9hjbp                                  1/1     Running   0          6m44s
+bridge-marker-rw2wp                                  1/1     Running   0          6m45s
+cdi-apiserver-65b7dcc8db-zsxc2                       1/1     Running   0          6m38s
+cdi-deployment-6f4888b5cb-sd5td                      1/1     Running   0          6m43s
+cdi-operator-d9f68b586-4gwsr                         1/1     Running   0          11m
+cdi-uploadproxy-64846f6d88-m6rgf                     1/1     Running   0          6m41s
+cluster-network-addons-operator-5db7476ddc-bpbgh     2/2     Running   0          13m
+hco-operator-7c49dc46b7-75c7f                        1/1     Running   0          13m
+hco-webhook-6f44f7876c-v5tgt                         1/1     Running   0          13m
+hostpath-provisioner-operator-744d67d94-9blsd        1/1     Running   0          11m
+hyperconverged-cluster-cli-download-c5976f57-w7rfn   1/1     Running   0          13m
+kube-cni-linux-bridge-plugin-2hnhf                   1/1     Running   0          6m45s
+kube-cni-linux-bridge-plugin-bldxl                   1/1     Running   0          6m45s
+kube-cni-linux-bridge-plugin-pk4mg                   1/1     Running   0          6m46s
+kubemacpool-cert-manager-7fb554ff46-fqw5w            1/1     Running   0          6m42s
+kubemacpool-mac-controller-manager-d7d9d75c5-ccshp   2/2     Running   0          6m41s
+kubevirt-plugin-78648f7cdd-s6lcb                     1/1     Running   0          5m45s
+ssp-operator-7d54856c95-wwsz9                        1/1     Running   0          13m
+tekton-tasks-operator-5965f7fb8d-dhz7s               1/1     Running   0          13m
+virt-api-6df7f6589d-xnd9h                            1/1     Running   0          5m21s
+virt-controller-67d847bf4c-5bfxk                     1/1     Running   0          4m43s
+virt-handler-8dsgq                                   1/1     Running   0          4m42s
+virt-handler-fdtj2                                   1/1     Running   0          4m42s
+virt-handler-lbspl                                   0/1     Running   0          4m42s
+virt-operator-7c84bcdbb9-2lhtd                       1/1     Running   0          10m
+virt-operator-7c84bcdbb9-6ppxv                       1/1     Running   0          10m
+virt-template-validator-5db7c57844-l9nnd             1/1     Running   0          6m14s
+~~~
+
+~~~bash
+$ oc get pvc -n openshift-virtualization-os-images
+NAME                          STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS                  AGE
+centos-stream8-2f16c067b974   Bound    pvc-d43c50dc-2ab8-4180-a0b2-bd0ec16d9ba9   30Gi       RWX            ocs-storagecluster-ceph-rbd   5m52s
+centos-stream9-0c8d8b253a0b   Bound    pvc-fa7b7445-6530-40b0-ad8b-9a9f7d79551c   30Gi       RWX            ocs-storagecluster-ceph-rbd   5m46s
+centos7-680e9b4e0fba          Bound    pvc-f40d26e6-60a8-45f9-9828-78f2db18f2e9   30Gi       RWX            ocs-storagecluster-ceph-rbd   4m55s
+fedora-29b80ef738f9           Bound    pvc-abcdd86e-be78-425d-898a-77b2df011254   30Gi       RWX            ocs-storagecluster-ceph-rbd   5m34s
+rhel8-65e567156c9c            Bound    pvc-73064155-0eaf-4a7c-b82b-44a68c706656   30Gi       RWX            ocs-storagecluster-ceph-rbd   6m12s
+rhel9-6f58b5a089be            Bound    pvc-8461654e-9f65-4800-a2ef-0d7b0eeaf3e5   30Gi       RWX            ocs-storagecluster-ceph-rbd   6m11s
+~~~
+
+~~~bash
+$ oc get csv -n openshift-cnv
+NAME                                       DISPLAY                    VERSION   REPLACES                                   PHASE
+kubevirt-hyperconverged-operator.v4.11.0   OpenShift Virtualization   4.11.0    kubevirt-hyperconverged-operator.v4.10.5   Succeeded
+~~~
+
+If you do not see `Succeeded` in the `PHASE` column then the deployment may still be progressing, or has failed. You will not be able to proceed until the installation has been successful. Once the `PHASE` changes to `Succeeded` you can validate that the required resources and the additional components have been deployed across the nodes. First let's check the pods deployed in the `openshift-cnv` namespace:
+
+## Launch Virtual Machine
