@@ -77,7 +77,7 @@ Let's move onto installing and configuring our workloads.
 
 ## Deploying Local Storage Operator
 
-Now that we know our hosted cluster is ready to consume workloads lets get started by installing the Local Storage Operator.  When we are finished we should have the results similar to what is in the following diagram in that a local storage PV will be created for every sdb block debice.
+Now that we know our hosted cluster is ready to consume workloads lets get started by installing the Local Storage Operator.  When we are finished we should have the results similar to what is in the following diagram in that a local storage PV will be created for every sdb block device.
 
 <img src="hosted2.jpeg" style="width: 800px;" border=0/>
 
