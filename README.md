@@ -127,7 +127,7 @@ operatorgroup.operators.coreos.com/local-operator-group created
 Now we can proceed to create a subscription for the Local Storage Operator and apply that to the hosted cluster.
 
 ~~~bash
-cat << EOF > ~/openshift-local-storage-subscription.yaml
+$ cat << EOF > ~/openshift-local-storage-subscription.yaml
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -221,7 +221,7 @@ We have now completed installing and configuring the Local Storage Operator.   W
 At this point we have now completed the prerequisites of installing the Local Storage Operator. We can now turn our attention to installing OpenShift Data Foundation which will consume those local storage PVs and leverage them in a storage cluster which will provide block, object and file.  To get started we need to go ahead and create the openshift-storage namespace.
 
 ~~~bash
-cat << EOF > ~/openshift-storage-namespace.yaml
+$ cat << EOF > ~/openshift-storage-namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -267,7 +267,7 @@ spec:
 EOF
 ~~~
 
-Lets go ahead and create the operator group and subscription from the file we created:
+Lets go ahead and create the operator group and subscription from the resource yaml file we created:
 
 ~~~bash
 $ oc create -f ~/openshift-storage-subscription.yaml
@@ -275,18 +275,21 @@ operatorgroup.operators.coreos.com/openshift-storage-operatorgroup created
 subscription.operators.coreos.com/ocs-operator created
 ~~~
 
-With the namespace, openshift-storage operator group and subscription created we should in a few minutes have a successfully running OCS operator in the environment.  We can can confirm the operator is up and running by looking at it from the command line where we should see 4 running pods under the openshift-storage namespace:
+With the namespace, openshift-storage operator group and subscription created we should in a few minutes have the required running pods for the OpenShift Data Foundation Operator in the environment.
 
 ~~~bash
 $ oc get pods -n openshift-storage
-NAME                                   READY   STATUS    RESTARTS   AGE
-noobaa-operator-5d47cf4f58-q48z5       1/1     Running   0          54s
-ocs-metrics-exporter-fbd466d84-kxn4n   1/1     Running   0          53s
-ocs-operator-7d7554cd7-5gcmr           1/1     Running   0          54s
-rook-ceph-operator-94cfd97d5-mg57r     1/1     Running   0          54s
+NAME                                               READY   STATUS    RESTARTS   AGE
+csi-addons-controller-manager-db678484c-h8lc6      2/2     Running   0          2m45s
+noobaa-operator-67d4d55688-ztnf7                   1/1     Running   0          3m5s
+ocs-metrics-exporter-977854c58-4pjxb               1/1     Running   0          84s
+ocs-operator-678d6b5d89-6k8mj                      1/1     Running   0          2m51s
+odf-console-54f74bc899-2gtb6                       1/1     Running   0          3m2s
+odf-operator-controller-manager-65d8c775c4-k4w6h   2/2     Running   0          3m2s
+rook-ceph-operator-7b55877858-x5q77                1/1     Running   0          2m50s
 ~~~
 
-Now that we know the operator is deployed (and the associated pods are running) we can proceed to creating a hyperconverged OCS cluster.  To do this we first need to create a storage cluster yaml file that will allow us to consume each of the two pvs per worker node that we configured via the local storage operator.
+Now that we know the operator is deployed (and the associated pods are running) we can proceed to creating a hyperconverged OpenShift Data Foundation cluster.  To do this we first need to create a storage cluster yaml file that will allow us to consume each of the pvs per worker node that we configured via the Local Storage Operator.  We will also configure cpu, memory, replicas and which components the operator will manage in this file.
 
 ~~~bash
 $ cat << EOF > ~/openshift-storage-cluster.yaml
@@ -322,7 +325,7 @@ spec:
   multiCloudGateway:
     reconcileStrategy: manage
   storageDeviceSets:
-  - count: 2
+  - count: 1
     dataPVCTemplate:
       spec:
         accessModes:
