@@ -448,13 +448,13 @@ openshift-storage.noobaa.io             openshift-storage.noobaa.io/obc         
 At this point we have a fully functional OpenShift Data Foundation cluster providing block, object and filesystem storage for any applications that require it.
 
 
-## OpenShift Containerized Virtualization
+## OpenShift Virtualization
 
-With the storage installation complete we can move onto depoying OpenShift Containerized Virtualization which will provide us the capability to run virtual machines within a container on our OpenShift hosted cluster.   The following diagram depicts where those virtual machines might run in the environment.
+With the storage installation complete we can move onto depoying OpenShift Virtualization which will provide us the capability to run virtual machines within a container on our OpenShift hosted cluster.   The following diagram depicts where those virtual machines might run in the environment.
 
 <img src="hosted4.jpeg" style="width: 800px;" border=0/>
 
-The first step for installing OpenShift Containerized Virtualization is to prepare custom resource yaml that will configure the namespace, operator group and subscription to install the operator.
+The first step for installing OpenShift Virtualization is to prepare custom resource yaml that will configure the namespace, operator group and subscription to install the operator.
 
 ~~~bash
 $ cat << EOF > ~/openshift-cnv-operator-install.yaml
@@ -495,7 +495,7 @@ operatorgroup.operators.coreos.com/kubevirt-hyperconverged-group created
 subscription.operators.coreos.com/hco-operatorhub created
 ~~~
 
-After a few minutes we can see the operator and supporting pods for OpenShift Containerized Virtualization running.
+After a few minutes we can see the operator and supporting pods for OpenShift Virtualization running.
 
 ~~~bash
 $ oc get pods -n openshift-cnv
@@ -587,7 +587,7 @@ NAME                                       DISPLAY                    VERSION   
 kubevirt-hyperconverged-operator.v4.11.0   OpenShift Virtualization   4.11.0    kubevirt-hyperconverged-operator.v4.10.5   Succeeded
 ~~~
 
-This completes the installation and configuration of  OpenShift Containerized Virtualization.
+This completes the installation and configuration of OpenShift  Virtualization.
 
 ## Launch Virtual Machine
 
@@ -673,17 +673,19 @@ $ oc create -f ~/rhel9-virtual-machine.yaml
 virtualmachine.kubevirt.io/rhel9 created
 ~~~
 
+We can use the following command to see that the virtual machine is created and not running.  We can also see that a rhel9 pvc has also been bound to storage for this virtual machine.
+
 ~~~bash
 $ oc get virtualmachines -n default
 NAME    AGE   STATUS    READY
 rhel9   5m   Stopped   False
-~~~
 
-~~~bash
 $ oc get pvc -n default
 NAME    STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS                  AGE
 rhel9   Bound    pvc-0424ef42-9ac0-4ce1-b6a8-4814cfbabecf   30Gi       RWX            ocs-storagecluster-ceph-rbd   32s
 ~~~
+
+Before we can proceed we need to obtain virtctl which is a binary that enables us to do a variety of tasks with the virtual machine including starting the virtual machine and also accessing the console.  To obtain the binary we can run the following command which will expose the downloads available.
 
 ~~~bash
 $ oc get ConsoleCLIDownload virtctl-clidownloads-kubevirt-hyperconverged -o yaml
@@ -712,8 +714,9 @@ spec:
     text: Download virtctl for Mac for x86_64
   - href: https://hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com/amd64/windows/virtctl.zip
     text: Download virtctl for Windows for x86_64
-
 ~~~
+
+Since I am running on a linux host I will download the linux version of the virtctl command.  Once it is downloaded I will ungzip and untar the command and take a quick peek at its version output.
 
 ~~~bash
 $ wget https://hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com/amd64/linux/virtctl.tar.gz --no-check-certificate
@@ -727,12 +730,8 @@ WARNING: The certificate of ‘hyperconverged-cluster-cli-download-openshift-cnv
 HTTP request sent, awaiting response... 200 OK
 Length: 23102624 (22M) [application/octet-stream]
 Saving to: ‘virtctl.tar.gz’
+virtctl.tar.gz                                       100%[=====================================================================================================================>]  22.03M  90.7MB/s    in 0.2s  2022-09-15 12:39:22 (90.7 MB/s) - ‘virtctl.tar.gz’ saved [23102624/23102624]
 
-virtctl.tar.gz                                       100%[=====================================================================================================================>]  22.03M  90.7MB/s    in 0.2s    
-2022-09-15 12:39:22 (90.7 MB/s) - ‘virtctl.tar.gz’ saved [23102624/23102624]
-~~~
-
-~~~bash
 $ gzip -d virtctl.tar.gz 
 $ tar -xf virtctl.tar 
 $ virtctl version
@@ -740,10 +739,14 @@ Client Version: version.Info{GitVersion:"v0.53.2-93-g1450e4176", GitCommit:"1450
 Server Version: version.Info{GitVersion:"v0.53.2-93-g1450e4176", GitCommit:"1450e4176c568598538962d7243c2a0dffa7cfa9", GitTreeState:"clean", BuildDate:"2022-08-23T19:01:40Z", GoVersion:"go1.18.1", Compiler:"gc", Platform:"linux/amd64"}
 ~~~
 
+Now let's use the virtctl command to start our virtual machine on the hosted cluster.
+
 ~~~bash
 $ virtctl start rhel9
 VM rhel9 was scheduled to start
 ~~~
+
+And just to validate we can use the following oc command to see that indeed the virtual machine is running and in a ready state.
 
 ~~~bash
 $ oc get virtualmachines -n default
@@ -751,16 +754,22 @@ NAME    AGE   STATUS    READY
 rhel9   24m   Running   True
 ~~~
 
+Now I want to be able to access the virtual machine from the outside.  Since I specified masquerade network in my virtual machine definition I need to expose the virtual machines ssh port via a nodeport service.   I can use the virtctl command to execute this.
+
 ~~~bash
 $ virtctl expose vm rhel9 --port=22 --name=rhel9-vm-ssh --type=NodePort
 Service rhel9-vm-ssh successfully exposed for vm rhel9
 ~~~
+
+Now lets validate that the ssh service is setup.
 
 ~~~bash
 $ oc get svc rhel9-vm-ssh
 NAME           TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
 rhel9-vm-ssh   NodePort   172.31.213.184   <none>        22:31551/TCP   19s
 ~~~
+
+WIth the service setup we should now be able to ssh to the host from outside of the hosted cluster.  However before we do this lets take a look at the virctl console command and see if we can login to he virtual machine via the console.  Once logged in I will run a few commands to show we are on the virtual machine.
 
 ~~~bash
 $ virtctl console rhel9
@@ -805,6 +814,7 @@ tmpfs           554M     0  554M   0% /run/user/1000
 [cloud-user@rhel9 ~]$ 
 ~~~
 
+Sure enough we were able to login to the console of the virtual machine and ping out to the internet.  Now lets try accessing the virtual machine from outside of the hosted cluster via ssh.  Remember since we specified a nodeport service setup we need to use the external port that was assigned for ssh.  Further we can use any of the hosted clusters worker node ipaddresses as our target address.
 
 ~~~bash
 $ ssh cloud-user@192.168.0.117 -p 31551
@@ -818,4 +828,6 @@ rhel9
 Red Hat Enterprise Linux release 9.0 (Plow)
 [cloud-user@rhel9 ~]$
 ~~~
+
+At this point I have demonstrated installing various operators and launching a virtual machine running Red Hat Enterprise Linux 9.  By now it may have become apparent that installing workloads on a hosted cluster is really no different then using a standard cluster.  The only difference is that with hosted clusters they take less time to instantiate and provide hardware cost savings because the control plane does not need dedicated baremetal hardware.
 
