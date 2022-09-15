@@ -229,7 +229,11 @@ We have now completed installing and configuring the Local Storage Operator.   W
 
 ## Deploying OpenShift Data Foundation
 
-At this point we have now completed the prerequisites of installing the Local Storage Operator. We can now turn our attention to installing OpenShift Data Foundation which will consume those local storage PVs and leverage them in a storage cluster which will provide block, object and file.  To get started we need to go ahead and create the openshift-storage namespace.
+At this point we have now completed the prerequisites of installing the Local Storage Operator. We can now turn our attention to installing OpenShift Data Foundation which will consume those local storage PVs and leverage them in a storage cluster which will provide block, object and file.  The following diagram depicts a high level overview of where those storage cluster components reside.
+
+<img src="hosted3.jpeg" style="width: 800px;" border=0/>
+
+To get started with the installation we need to go ahead and create the openshift-storage namespace.
 
 ~~~bash
 $ cat << EOF > ~/openshift-storage-namespace.yaml
