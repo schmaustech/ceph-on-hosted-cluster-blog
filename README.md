@@ -8,7 +8,7 @@ In a previous blog on [How to Build Bare Metal Hosted Clusters on Red Hat Advanc
 
 First lets review the lab environment so we are familiar with how the hosted cluster was deployed.  Looking back we originally had a 3 node compact  Red Hat Advanced Cluster Management for Kubernetes 2.6 hub cluster running on OpenShift 4.10.26 called kni20.  This hub cluster has since been upgraded to OpenShift 4.11.3.  We used the hub cluster to deploy a hosted cluster running OpenShift 4.11.2 called kni21 where the control plane is running as containers on our hub cluster and then we also have 3 bare metal worker nodes for our workloads.  The high level architecture looks like the image below:
 
-<img src="hosted-cluster.jpeg" style="width: 800px;" border=0/>
+<img src="hosted1.jpeg" style="width: 800px;" border=0/>
 
 The kni21 worker nodes contain a second disk which we will make use of for our workloads from a storage perspective.  Further our DNS records for our kni21 environment look like the following since we were using the nodeport method for exposing our api and ingress routes:
 
@@ -28,9 +28,16 @@ Now that we have an idea of how the environment is setup lets turn our attention
 
 ## The Workloads
 
-When it comes to deploying workloads on a hosted cluster it really should not be any different then when deploying on a standard OpenShift cluster.   The same methods whether using cli or UI apply in installing and configuring various operators and applications.  In our case today we will be deploying Local Storage Operator, OpenShift Data Foundation and OpenShift Containerized virtualization in the hosted cluster environment.  But first we need to get access and validate our hosted cluster is ready to have the additional workloads added.
+When it comes to deploying workloads on a hosted cluster it really should not be any different then when deploying on a standard baremetal OpenShift cluster.   The same methods whether using cli or UI apply in installing and configuring various operators and applications.  Those operators and applications will get scheduled on any schedulable worker node in the cluster.  For the purpose of this blog I will be deploying the following workloads and supporting operators:
 
-First lets validate the hosted cluster is ready to accept workloads.  We can first check the status of the hosted cluster object.
+ * Local Storage Operator
+ * OpenShift Data Foundation
+ * OpenShift Containerized Virtualization
+ * Launching a virtual machine
+
+Before we begin however we should get access and validate our hosted cluster is ready to accept the workloads defined above.
+
+First lets validate the hosted cluster is ready and online.  We can first check the status of the hosted cluster object.
 
 ~~~bash
 $ oc get hostedcluster -n kni21
@@ -70,7 +77,11 @@ Let's move onto installing and configuring our workloads.
 
 ## Deploying Local Storage Operator
 
-Now that we know our hosted cluster is ready to consume workloads lets get started by installing the Local Storage Operator.  I already know that in each of my worker nodes I have a secondary 120GB block device called sdb so I will skip using oc debug to check for the block devices.   Next I will go ahead and label my worker nodes for storage.
+Now that we know our hosted cluster is ready to consume workloads lets get started by installing the Local Storage Operator.  When we are finished we should have the results similar to what is in the following diagram in that a local storage PV will be created for every sdb block debice.
+
+<img src="hosted2.jpeg" style="width: 800px;" border=0/>
+
+I already know that in each of my worker nodes I have a secondary 120GB block device called sdb so I will skip using oc debug to check for the block devices.   Next I will go ahead and label my worker nodes for storage.
 
 ~~~bash
 $ oc label nodes asus3-vm1.kni.schmaustech.com cluster.ocs.openshift.io/openshift-storage=''
