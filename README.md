@@ -566,6 +566,8 @@ virt-operator-7c84bcdbb9-6ppxv                       1/1     Running   0        
 virt-template-validator-5db7c57844-l9nnd             1/1     Running   0          6m14s
 ~~~
 
+We can also see that under the openshift-virtualization-os-images namespace six new image source pvcs were created for various default OSes.
+
 ~~~bash
 $ oc get pvc -n openshift-virtualization-os-images
 NAME                          STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS                  AGE
@@ -577,12 +579,163 @@ rhel8-65e567156c9c            Bound    pvc-73064155-0eaf-4a7c-b82b-44a68c706656 
 rhel9-6f58b5a089be            Bound    pvc-8461654e-9f65-4800-a2ef-0d7b0eeaf3e5   30Gi       RWX            ocs-storagecluster-ceph-rbd   6m11s
 ~~~
 
+And finally we can confirm installation is completed by looking at the csv.
+
 ~~~bash
 $ oc get csv -n openshift-cnv
 NAME                                       DISPLAY                    VERSION   REPLACES                                   PHASE
 kubevirt-hyperconverged-operator.v4.11.0   OpenShift Virtualization   4.11.0    kubevirt-hyperconverged-operator.v4.10.5   Succeeded
 ~~~
 
-If you do not see `Succeeded` in the `PHASE` column then the deployment may still be progressing, or has failed. You will not be able to proceed until the installation has been successful. Once the `PHASE` changes to `Succeeded` you can validate that the required resources and the additional components have been deployed across the nodes. First let's check the pods deployed in the `openshift-cnv` namespace:
+This completes the installation and configuration of  OpenShift Containerized Virtualization.
 
 ## Launch Virtual Machine
+
+At this point we now have all the components required, storage and virtualization, to install a virtual machine in our hosted cluster.  We can begin to get the virtual machine ready by defining a virtual machine template file like the one below.  In this example I will be deploying a Red Hat Enterprise Linux 9 virtual machine with a running state set to false.
+
+~~~bash
+$ cat << EOF > ~/rhel9-virtual-machine.yaml
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  labels:
+    app: rhel9 
+  name: rhel9
+spec:
+  dataVolumeTemplates:
+  - apiVersion: cdi.kubevirt.io/v1beta1
+    kind: DataVolume
+    metadata:
+      name: rhel9
+    spec:
+      sourceRef:
+        kind: DataSource
+        name: rhel9
+        namespace: openshift-virtualization-os-images
+      storage:
+        resources:
+          requests:
+            storage: 30Gi
+  running: false
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: rhel9
+    spec:
+      domain:
+        cpu:
+          cores: 2
+          sockets: 2
+          threads: 1
+        devices:
+          disks:
+          - disk:
+              bus: virtio
+            name: rootdisk
+          - disk:
+              bus: virtio
+            name: cloudinitdisk
+          interfaces:
+          - masquerade: {}
+            name: default
+          rng: {}
+        features:
+          smm:
+            enabled: true
+        firmware:
+          bootloader:
+            efi: {}
+        resources:
+          requests:
+            memory: 6Gi
+      evictionStrategy: LiveMigrate
+      networks:
+      - name: default
+        pod: {}
+      volumes:
+      - dataVolume:
+          name: rhel9
+        name: rootdisk
+      - cloudInitNoCloud:
+          userData: |-
+            #cloud-config
+            user: cloud-user
+            password: 'password' 
+            chpasswd: { expire: False }
+        name: cloudinitdisk
+EOF
+~~~
+
+With our template file created we can now apply it against our cluster to deploy the virtual machine.
+
+~~~bash
+$ oc create -f ~/rhel9-virtual-machine.yaml
+virtualmachine.kubevirt.io/rhel9 created
+~~~
+
+~~~bash
+$ oc get virtualmachines -n default
+NAME    AGE   STATUS    READY
+rhel9   34s   Stopped   False
+~~~
+
+~~~bash
+$ oc get pvc -n default
+NAME    STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS                  AGE
+rhel9   Bound    pvc-0424ef42-9ac0-4ce1-b6a8-4814cfbabecf   30Gi       RWX            ocs-storagecluster-ceph-rbd   32s
+~~~
+
+~~~bash
+$ oc get ConsoleCLIDownload virtctl-clidownloads-kubevirt-hyperconverged -o yaml
+apiVersion: console.openshift.io/v1
+kind: ConsoleCLIDownload
+metadata:
+  creationTimestamp: "2022-09-15T15:35:08Z"
+  generation: 1
+  labels:
+    app: kubevirt-hyperconverged
+    app.kubernetes.io/component: compute
+    app.kubernetes.io/managed-by: hco-operator
+    app.kubernetes.io/part-of: hyperconverged-cluster
+    app.kubernetes.io/version: 4.11.0
+  name: virtctl-clidownloads-kubevirt-hyperconverged
+  resourceVersion: "1057894"
+  uid: 5900a44e-d297-4400-9d64-d2cfa451b555
+spec:
+  description: The virtctl client is a supplemental command-line utility for managing
+    virtualization resources from the command line.
+  displayName: virtctl - KubeVirt command line interface
+  links:
+  - href: https://hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com/amd64/linux/virtctl.tar.gz
+    text: Download virtctl for Linux for x86_64
+  - href: https://hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com/amd64/mac/virtctl.zip
+    text: Download virtctl for Mac for x86_64
+  - href: https://hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com/amd64/windows/virtctl.zip
+    text: Download virtctl for Windows for x86_64
+
+~~~
+
+~~~bash
+$ wget https://hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com/amd64/linux/virtctl.tar.gz --no-check-certificate
+--2022-09-15 12:39:22--  https://hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com/amd64/linux/virtctl.tar.gz
+Resolving hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com (hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com)... 192.168.0.118, 192.168.0.116, 192.168.0.117
+Connecting to hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com (hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com)|192.168.0.118|:443... failed: Connection refused.
+Connecting to hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com (hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com)|192.168.0.116|:443... failed: Connection refused.
+Connecting to hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com (hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com)|192.168.0.117|:443... connected.
+WARNING: The certificate of ‘hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com’ is not trusted.
+WARNING: The certificate of ‘hyperconverged-cluster-cli-download-openshift-cnv.apps.kni21.schmaustech.com’ hasn't got a known issuer.
+HTTP request sent, awaiting response... 200 OK
+Length: 23102624 (22M) [application/octet-stream]
+Saving to: ‘virtctl.tar.gz’
+
+virtctl.tar.gz                                       100%[=====================================================================================================================>]  22.03M  90.7MB/s    in 0.2s    
+2022-09-15 12:39:22 (90.7 MB/s) - ‘virtctl.tar.gz’ saved [23102624/23102624]
+~~~
+
+~~~bash
+$ gzip -d virtctl.tar.gz 
+$ tar -xf virtctl.tar 
+$ virtctl version
+Client Version: version.Info{GitVersion:"v0.53.2-93-g1450e4176", GitCommit:"1450e4176c568598538962d7243c2a0dffa7cfa9", GitTreeState:"clean", BuildDate:"2022-08-23T19:01:27Z", GoVersion:"go1.18.1", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{GitVersion:"v0.53.2-93-g1450e4176", GitCommit:"1450e4176c568598538962d7243c2a0dffa7cfa9", GitTreeState:"clean", BuildDate:"2022-08-23T19:01:40Z", GoVersion:"go1.18.1", Compiler:"gc", Platform:"linux/amd64"}
+~~~
