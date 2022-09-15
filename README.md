@@ -1,4 +1,4 @@
-# **Workloads on Bare Metal Hosted Clusters**
+# **Workloads on Bare Metal Hosted Clusters Deployed From Red Hat Advanced Cluster Management for Kubernetes**
 
 <img src="high-level-overview.png" style="width: 1000px;" border=0/>
 
@@ -354,90 +354,84 @@ If we look at the above storage cluster yaml the key things that stand out are t
 With the storage cluster yaml created lets go ahead and create the storage cluster:
 
 ~~~bash
-[root@ocp4-bastion ~]# oc create -f openshift-storage-cluster.yaml
+$ oc create -f ~/openshift-storage-cluster.yaml
 storagecluster.ocs.openshift.io/ocs-storagecluster created
 ~~~
 
 If we run an oc get pods for the openshift-storage namespace we can see pods are starting to create to build out the storage cluster.  If one wanted to watch this continuously we could throw a watch command in front of the oc command.   It will take a few minutes to instantiate the cluster nevertheless.
 
-~~~bash
-[root@ocp4-bastion ~]# oc get pods -n openshift-storage
-NAME                                            READY   STATUS              RESTARTS   AGE
-csi-cephfsplugin-6lz7d                          0/3     ContainerCreating   0          2s
-csi-cephfsplugin-pmm5g                          0/3     ContainerCreating   0          2s
-csi-cephfsplugin-provisioner-749c5f9766-89vx6   0/6     ContainerCreating   0          2s
-csi-cephfsplugin-provisioner-749c5f9766-ktjg8   0/6     ContainerCreating   0          1s
-csi-cephfsplugin-ptptq                          0/3     ContainerCreating   0          2s
-csi-rbdplugin-5wtcw                             0/3     ContainerCreating   0          3s
-csi-rbdplugin-provisioner-79c88978ff-5b9nm      0/6     ContainerCreating   0          2s
-csi-rbdplugin-provisioner-79c88978ff-s6zwj      0/6     ContainerCreating   0          2s
-csi-rbdplugin-qgthm                             0/3     ContainerCreating   0          3s
-csi-rbdplugin-xrjvq                             0/3     ContainerCreating   0          3s
-noobaa-operator-5d47cf4f58-q48z5                1/1     Running             0          13m
-ocs-metrics-exporter-fbd466d84-kxn4n            1/1     Running             0          13m
-ocs-operator-7d7554cd7-5gcmr                    1/1     Running             0          13m
-rook-ceph-detect-version-cb9v9                  0/1     PodInitializing     0          6s
-rook-ceph-operator-94cfd97d5-mg57r              1/1     Running             0          13m
-~~~
-
 Finally after about 5 minutes we can see all the pods that have been generated to deploy the OCS storage cluster:
 
 ~~~bash
-[root@ocp4-bastion ~]# oc get pods -n openshift-storage
-NAME                                                              READY   STATUS      RESTARTS   AGE
-csi-cephfsplugin-6lz7d                                            3/3     Running     0          6m13s
-csi-cephfsplugin-pmm5g                                            3/3     Running     0          6m13s
-csi-cephfsplugin-provisioner-749c5f9766-89vx6                     6/6     Running     0          6m13s
-csi-cephfsplugin-provisioner-749c5f9766-ktjg8                     6/6     Running     0          6m12s
-csi-cephfsplugin-ptptq                                            3/3     Running     0          6m13s
-csi-rbdplugin-5wtcw                                               3/3     Running     0          6m14s
-csi-rbdplugin-provisioner-79c88978ff-5b9nm                        6/6     Running     0          6m13s
-csi-rbdplugin-provisioner-79c88978ff-s6zwj                        6/6     Running     0          6m13s
-csi-rbdplugin-qgthm                                               3/3     Running     0          6m14s
-csi-rbdplugin-xrjvq                                               3/3     Running     0          6m14s
-noobaa-core-0                                                     1/1     Running     0          3m28s
-noobaa-db-0                                                       1/1     Running     0          3m28s
-noobaa-endpoint-8448cb4bcb-qgddv                                  1/1     Running     0          39s
-noobaa-operator-5d47cf4f58-q48z5                                  1/1     Running     0          19m
-ocs-metrics-exporter-fbd466d84-kxn4n                              1/1     Running     0          19m
-ocs-operator-7d7554cd7-5gcmr                                      1/1     Running     0          19m
-rook-ceph-crashcollector-ocp4-worker1.aio.example.com-7556jrn5l   1/1     Running     0          4m14s
-rook-ceph-crashcollector-ocp4-worker2.aio.example.com-5d65n7v7m   1/1     Running     0          5m9s
-rook-ceph-crashcollector-ocp4-worker3.aio.example.com-65d4zvppx   1/1     Running     0          5m27s
-rook-ceph-mds-ocs-storagecluster-cephfilesystem-a-7b87d55f2kfff   1/1     Running     0          3m9s
-rook-ceph-mds-ocs-storagecluster-cephfilesystem-b-5cddbbddp2mkl   1/1     Running     0          3m6s
-rook-ceph-mgr-a-7f796dc664-lxqqg                                  1/1     Running     0          3m51s
-rook-ceph-mon-a-74f59544d8-kkb6m                                  1/1     Running     0          5m27s
-rook-ceph-mon-b-7b5cff9b5f-c5lck                                  1/1     Running     0          5m9s
-rook-ceph-mon-c-5476944976-ggvlq                                  1/1     Running     0          4m14s
-rook-ceph-operator-94cfd97d5-mg57r                                1/1     Running     0          19m
-rook-ceph-osd-0-6b69bb668d-gkjw9                                  1/1     Running     0          3m35s
-rook-ceph-osd-1-5c98954c75-wskr4                                  1/1     Running     0          3m34s
-rook-ceph-osd-2-c998f4d95-5kxdr                                   1/1     Running     0          3m34s
-rook-ceph-osd-3-5575c6d996-cktmk                                  1/1     Running     0          3m33s
-rook-ceph-osd-4-7c7cfb6df-g28mx                                   1/1     Running     0          3m31s
-rook-ceph-osd-5-84b5fffc6c-vczjc                                  1/1     Running     0          3m32s
-rook-ceph-osd-prepare-ocs-deviceset-0-data-0g7jnx-h7pws           0/1     Completed   0          3m49s
-rook-ceph-osd-prepare-ocs-deviceset-0-data-1rvzs6-954f2           0/1     Completed   0          3m49s
-rook-ceph-osd-prepare-ocs-deviceset-1-data-0ffs9p-zqqpp           0/1     Completed   0          3m48s
-rook-ceph-osd-prepare-ocs-deviceset-1-data-1sxx7p-gk65z           0/1     Completed   0          3m48s
-rook-ceph-osd-prepare-ocs-deviceset-2-data-0pp4gm-j27kq           0/1     Completed   0          3m48s
-rook-ceph-osd-prepare-ocs-deviceset-2-data-18bcdc-btf54           0/1     Completed   0          3m47s
-rook-ceph-rgw-ocs-storagecluster-cephobjectstore-a-5d89cb99lbb9   1/1     Running     0          2m33s
-rook-ceph-rgw-ocs-storagecluster-cephobjectstore-b-5bb55f6rhlmx   1/1     Running     0          2m27s
+$ oc get pods -n openshift-storage
+NAME                                                              READY   STATUS      RESTARTS      AGE
+csi-addons-controller-manager-db678484c-h8lc6                     2/2     Running     2 (14m ago)   29m
+csi-cephfsplugin-mgf92                                            3/3     Running     0             7m41s
+csi-cephfsplugin-provisioner-7bdf9d685c-l28x5                     6/6     Running     0             7m41s
+csi-cephfsplugin-provisioner-7bdf9d685c-tqdvw                     6/6     Running     0             7m42s
+csi-cephfsplugin-w26pp                                            3/3     Running     0             7m41s
+csi-cephfsplugin-zgrph                                            3/3     Running     0             7m42s
+csi-rbdplugin-provisioner-cc79dfc7b-rfhw4                         7/7     Running     0             7m42s
+csi-rbdplugin-provisioner-cc79dfc7b-zn7fb                         7/7     Running     0             7m43s
+csi-rbdplugin-qkfbv                                               4/4     Running     0             7m43s
+csi-rbdplugin-txxr5                                               4/4     Running     0             7m43s
+csi-rbdplugin-xktrt                                               4/4     Running     0             7m43s
+noobaa-core-0                                                     1/1     Running     0             82s
+noobaa-db-pg-0                                                    1/1     Running     0             85s
+noobaa-operator-67d4d55688-ztnf7                                  1/1     Running     1 (80s ago)   29m
+ocs-metrics-exporter-977854c58-4pjxb                              1/1     Running     0             27m
+ocs-operator-678d6b5d89-6k8mj                                     1/1     Running     2 (14m ago)   29m
+odf-console-54f74bc899-2gtb6                                      1/1     Running     0             29m
+odf-operator-controller-manager-65d8c775c4-k4w6h                  2/2     Running     1 (14m ago)   29m
+rook-ceph-crashcollector-asus3-vm1.kni.schmaustech.com-6776zjlw   1/1     Running     0             2m6s
+rook-ceph-crashcollector-asus3-vm2.kni.schmaustech.com-7cc4pn4b   1/1     Running     0             2m10s
+rook-ceph-crashcollector-asus3-vm3.kni.schmaustech.com-784jxfwt   1/1     Running     0             3m13s
+rook-ceph-mds-ocs-storagecluster-cephfilesystem-a-757db8fb5vh4v   2/2     Running     0             2m12s
+rook-ceph-mds-ocs-storagecluster-cephfilesystem-b-97cf869-mfj7f   2/2     Running     0             2m9s
+rook-ceph-mgr-a-698c899c69-8dmxh                                  2/2     Running     0             3m32s
+rook-ceph-mon-a-5895f8556b-2d2w6                                  2/2     Running     0             4m45s
+rook-ceph-mon-b-676cdcb5bf-5b26q                                  2/2     Running     0             4m14s
+rook-ceph-mon-c-6b66d85467-t2wjp                                  2/2     Running     0             3m53s
+rook-ceph-operator-7b55877858-x5q77                               1/1     Running     0             29m
+rook-ceph-osd-0-76d7855dbb-r9q9f                                  2/2     Running     0             2m39s
+rook-ceph-osd-1-7f5db57655-xwgkn                                  2/2     Running     0             2m36s
+rook-ceph-osd-2-7cf6f8bc64-h58gz                                  2/2     Running     0             2m35s
+rook-ceph-osd-prepare-ocs-deviceset-0-data-06j5df-z75jf           0/1     Completed   0             2m57s
+rook-ceph-osd-prepare-ocs-deviceset-1-data-0gf9tv-v8f2t           0/1     Completed   0             2m55s
+rook-ceph-osd-prepare-ocs-deviceset-2-data-0vbtdz-5kxb8           0/1     Completed   0             2m54s
+rook-ceph-rgw-ocs-storagecluster-cephobjectstore-a-79bcfc7xgfst   2/2     Running     0             2m2s
 ~~~
 
 We can also confirm this from the command line by issuing an oc get storageclass.  We should see 4 new storageclasses: one for block (rbd), two for object (rgw/nooba) and one for file(cephfs).  
 
 ~~~bash
-[root@ocp4-bastion ~]# oc get storageclass
+$ oc get storageclass
 NAME                          PROVISIONER                             RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
-localblock                    kubernetes.io/no-provisioner            Delete          WaitForFirstConsumer   false                  3h4m
-ocs-storagecluster-ceph-rbd   openshift-storage.rbd.csi.ceph.com      Delete          Immediate              true                   6m50s
-ocs-storagecluster-ceph-rgw   openshift-storage.ceph.rook.io/bucket   Delete          Immediate              false                  6m50s
-ocs-storagecluster-cephfs     openshift-storage.cephfs.csi.ceph.com   Delete          Immediate              true                   6m50s
-openshift-storage.noobaa.io   openshift-storage.noobaa.io/obc         Delete          Immediate              false                  70s
+localblock                    kubernetes.io/no-provisioner            Delete          WaitForFirstConsumer   false                  15h
+ocs-storagecluster-ceph-rbd   openshift-storage.rbd.csi.ceph.com      Delete          Immediate              true                   95m
+ocs-storagecluster-ceph-rgw   openshift-storage.ceph.rook.io/bucket   Delete          Immediate              false                  101m
+ocs-storagecluster-cephfs     openshift-storage.cephfs.csi.ceph.com   Delete          Immediate              true                   95m
+openshift-storage.noobaa.io   openshift-storage.noobaa.io/obc         Delete          Immediate              false                  92m
+~~~
+
+Before we move on lets go ahead and set the rbd storageclass to the default.
+
+~~~bash
+$ oc patch storageclass  ocs-storagecluster-ceph-rbd -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+storageclass.storage.k8s.io/ocs-storagecluster-ceph-rbd patched
+
+$ oc get sc
+NAME                                    PROVISIONER                             RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+localblock                              kubernetes.io/no-provisioner            Delete          WaitForFirstConsumer   false                  15h
+ocs-storagecluster-ceph-rbd (default)   openshift-storage.rbd.csi.ceph.com      Delete          Immediate              true                   97m
+ocs-storagecluster-ceph-rgw             openshift-storage.ceph.rook.io/bucket   Delete          Immediate              false                  103m
+ocs-storagecluster-cephfs               openshift-storage.cephfs.csi.ceph.com   Delete          Immediate              true                   97m
+openshift-storage.noobaa.io             openshift-storage.noobaa.io/obc         Delete          Immediate              false                  94m
+
 ~~~
 
 At this point you have a fully functional OpenShift Container Storage cluster to be consumed by applications. You can optionally deploy the Ceph tools pod, where you can dive into some of the Ceph internals at your leisure:
+
+
+## OpenShift Containerized Virtualization
 
