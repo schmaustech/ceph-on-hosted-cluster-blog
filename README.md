@@ -676,7 +676,7 @@ virtualmachine.kubevirt.io/rhel9 created
 ~~~bash
 $ oc get virtualmachines -n default
 NAME    AGE   STATUS    READY
-rhel9   34s   Stopped   False
+rhel9   5m   Stopped   False
 ~~~
 
 ~~~bash
@@ -739,3 +739,83 @@ $ virtctl version
 Client Version: version.Info{GitVersion:"v0.53.2-93-g1450e4176", GitCommit:"1450e4176c568598538962d7243c2a0dffa7cfa9", GitTreeState:"clean", BuildDate:"2022-08-23T19:01:27Z", GoVersion:"go1.18.1", Compiler:"gc", Platform:"linux/amd64"}
 Server Version: version.Info{GitVersion:"v0.53.2-93-g1450e4176", GitCommit:"1450e4176c568598538962d7243c2a0dffa7cfa9", GitTreeState:"clean", BuildDate:"2022-08-23T19:01:40Z", GoVersion:"go1.18.1", Compiler:"gc", Platform:"linux/amd64"}
 ~~~
+
+~~~bash
+$ virtctl start rhel9
+VM rhel9 was scheduled to start
+~~~
+
+~~~bash
+$ oc get virtualmachines -n default
+NAME    AGE   STATUS    READY
+rhel9   24m   Running   True
+~~~
+
+~~~bash
+$ virtctl expose vm rhel9 --port=22 --name=rhel9-vm-ssh --type=NodePort
+Service rhel9-vm-ssh successfully exposed for vm rhel9
+~~~
+
+~~~bash
+$ oc get svc rhel9-vm-ssh
+NAME           TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+rhel9-vm-ssh   NodePort   172.31.213.184   <none>        22:31551/TCP   19s
+~~~
+
+~~~bash
+$ virtctl console rhel9
+Successfully connected to rhel9 console. The escape sequence is ^]
+
+rhel9 login: cloud-user
+Password: 
+[cloud-user@rhel9 ~]$ cat /etc/redhat-release
+Red Hat Enterprise Linux release 9.0 (Plow)
+[cloud-user@rhel9 ~]$ ping 8.8.8.8
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=52 time=20.4 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=52 time=25.9 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=52 time=25.3 ms
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2004ms
+rtt min/avg/max/mdev = 20.437/23.864/25.884/2.436 ms
+[cloud-user@rhel9 ~]$ ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400 qdisc fq_codel state UP group default qlen 1000
+    link/ether 02:01:35:00:00:01 brd ff:ff:ff:ff:ff:ff
+    altname enp1s0
+    inet 10.0.2.2/24 brd 10.0.2.255 scope global dynamic noprefixroute eth0
+       valid_lft 86309219sec preferred_lft 86309219sec
+    inet6 fe80::1:35ff:fe00:1/64 scope link 
+       valid_lft forever preferred_lft forever
+[cloud-user@rhel9 ~]$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+devtmpfs        2.7G     0  2.7G   0% /dev
+tmpfs           2.8G     0  2.8G   0% /dev/shm
+tmpfs           1.1G  8.7M  1.1G   1% /run
+/dev/vda4        30G  1.4G   29G   5% /
+/dev/vda3       495M  138M  358M  28% /boot
+/dev/vda2       200M  7.0M  193M   4% /boot/efi
+tmpfs           554M     0  554M   0% /run/user/1000
+[cloud-user@rhel9 ~]$ 
+~~~
+
+
+~~~bash
+$ ssh cloud-user@192.168.0.117 -p 31551
+cloud-user@192.168.0.117's password: 
+Register this system with Red Hat Insights: insights-client --register
+Create an account or view all your systems at https://red.ht/insights-dashboard
+Last login: Thu Sep 15 15:07:52 2022
+[cloud-user@rhel9 ~]$ hostname
+rhel9
+[cloud-user@rhel9 ~]$ cat /etc/redhat-release
+Red Hat Enterprise Linux release 9.0 (Plow)
+[cloud-user@rhel9 ~]$
+~~~
+
