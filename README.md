@@ -6,7 +6,7 @@ In a previous blog on [How to Build Bare Metal Hosted Clusters on Red Hat Advanc
 
 ## Lab Environment
 
-First let's review the lab environment so we are familiar with how the hosted cluster was deployed.  Looking back we originally had a 3 node compact Red Hat Advanced Cluster Management for Kubernetes 2.6 hub cluster running on OpenShift 4.10.26 called kni20.  This hub cluster has since been upgraded to OpenShift 4.11.3.  We used the hub cluster to deploy a hosted cluster running OpenShift 4.11.2 called kni21 where the control plane is running as containers on our hub cluster and then we also have 3 bare metal worker nodes for our workloads.  The high level architecture looks like the image below:
+First let's review the lab environment so we are familiar with how the hosted cluster was deployed.  Looking back we originally had a 3 node compact Red Hat Advanced Cluster Management for Kubernetes 2.6 hub cluster running on OpenShift 4.10.26 called kni20.  This hub cluster has since been upgraded to OpenShift 4.11.3.  We used the hub cluster to deploy a hosted cluster running OpenShift 4.11.2 called kni21 where the control plane is running as containers on our hub cluster and then we also have 3 bare metal worker nodes for our workloads.  The high level architecture looks like the diagram below:
 
 <img src="hosted1.jpeg" style="width: 800px;" border=0/>
 
@@ -444,7 +444,7 @@ At this point we have a fully functional OpenShift Data Foundation cluster provi
 
 ## OpenShift Virtualization
 
-With the storage installation complete we can move onto depoying OpenShift Virtualization which will provide us the capability to run virtual machines within a container on our OpenShift hosted cluster.   The following diagram depicts where those virtual machines might run in the environment.
+With the storage installation complete we can move onto depoying OpenShift Virtualization which will provide us the capability to run virtual machines within a container on our OpenShift hosted cluster.   The following diagram offers an example of where those virtual machines might run in the environment.
 
 <img src="hosted4.jpeg" style="width: 800px;" border=0/>
 
