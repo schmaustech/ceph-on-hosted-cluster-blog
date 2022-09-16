@@ -2,11 +2,11 @@
 
 <img src="high-level-overview.png" style="width: 1000px;" border=0/>
 
-In a previous blog on [How to Build Bare Metal Hosted Clusters on Red Hat Advanced Cluster Management for Kubernetes](https://cloud.redhat.com/blog/how-to-build-bare-metal-hosted-clusters-on-red-hat-advanced-cluster-management-for-kubernetes) I discussed how one could deploy a hosted cluster.  The blog outlined the benefits of running hosted clusters which included minimal time to deploy and cost savings due to the control plane running on an existing OpenShift cluster.  I further demonstrated how to build out the environment and validate that the installation was completed sucessfully.  Today however I want to move onto the day two activities like running workloads on that hosted cluster which is exactly what we will cover in this blog.   
+In a previous blog on [How to Build Bare Metal Hosted Clusters on Red Hat Advanced Cluster Management for Kubernetes](https://cloud.redhat.com/blog/how-to-build-bare-metal-hosted-clusters-on-red-hat-advanced-cluster-management-for-kubernetes) I discussed how one could deploy a hosted cluster.  The blog outlined the benefits of running hosted clusters which included minimal time to deploy and cost savings due to the control plane running on an existing OpenShift cluster.  I further demonstrated how to build out the environment and validate that the installation was completed sucessfully.  Today however I want to move onto the day two activities like running workloads on the hosted cluster which is what we will cover in this blog.   
 
 ## Lab Environment
 
-First lets review the lab environment so we are familiar with how the hosted cluster was deployed.  Looking back we originally had a 3 node compact  Red Hat Advanced Cluster Management for Kubernetes 2.6 hub cluster running on OpenShift 4.10.26 called kni20.  This hub cluster has since been upgraded to OpenShift 4.11.3.  We used the hub cluster to deploy a hosted cluster running OpenShift 4.11.2 called kni21 where the control plane is running as containers on our hub cluster and then we also have 3 bare metal worker nodes for our workloads.  The high level architecture looks like the image below:
+First let's review the lab environment so we are familiar with how the hosted cluster was deployed.  Looking back we originally had a 3 node compact Red Hat Advanced Cluster Management for Kubernetes 2.6 hub cluster running on OpenShift 4.10.26 called kni20.  This hub cluster has since been upgraded to OpenShift 4.11.3.  We used the hub cluster to deploy a hosted cluster running OpenShift 4.11.2 called kni21 where the control plane is running as containers on our hub cluster and then we also have 3 bare metal worker nodes for our workloads.  The high level architecture looks like the image below:
 
 <img src="hosted1.jpeg" style="width: 800px;" border=0/>
 
@@ -24,20 +24,18 @@ Name:	*.apps.kni21.schmaustech.com
 Address: 192.168.0.117
 ~~~
 
-Now that we have an idea of how the environment is setup lets turn our attention to running workloads.
+Now that we have an idea of how the environment is configured lets turn our attention to running workloads.
 
 ## The Workloads
 
-When it comes to deploying workloads on a hosted cluster it really should not be any different then when deploying on a standard baremetal OpenShift cluster.   The same methods whether using cli or UI apply in installing and configuring various operators and applications.  Those operators and applications will get scheduled on any schedulable worker node in the cluster.  For the purpose of this blog I will be deploying the following workloads and supporting operators:
+When it comes to deploying workloads on a hosted cluster it really should not be any different then when deploying on a standard baremetal OpenShift cluster.   The same methods, whether using cli or UI, apply in installing and configuring various operators and applications.  Those operators and applications will get scheduled on any schedulable worker node in the cluster.  For the purpose of this blog I will be deploying the following workloads and supporting operators:
 
  * Local Storage Operator
  * OpenShift Data Foundation
  * OpenShift Containerized Virtualization
  * Launching a virtual machine
 
-Before we begin however we should get access and validate our hosted cluster is ready to accept the workloads defined above.
-
-First lets validate the hosted cluster is ready and online.  We can first check the status of the hosted cluster object.
+Before we begin however we should get access and validate our hosted cluster is ready to accept the workloads defined above.  First let's validate the hosted cluster is ready and online.  We can first check the status of the hosted cluster object to see its state.
 
 ~~~bash
 $ oc get hostedcluster -n kni21
@@ -45,7 +43,7 @@ NAME    VERSION   KUBECONFIG               PROGRESS    AVAILABLE   PROGRESSING  
 kni21   4.11.2    kni21-admin-kubeconfig   Completed   True        False         The hosted control plane is available
 ~~~
 
-We can also validate the nodepool to confirm the desired worker node count is present:
+We can also validate the nodepool to confirm the desired worker node count of three is present.
 
 ~~~bash
 $ oc get nodepool -n kni21
@@ -53,14 +51,14 @@ NAME               CLUSTER   DESIRED NODES   CURRENT NODES   AUTOSCALING   AUTOR
 nodepool-kni21-1   kni21     3               3               False         False        4.11.2  
 ~~~
 
-And finally we can now extract the kubeconfig for the kni21 cluster so we can run commands against the hosted cluster.
+And finally we can now extract the kubeconfig for the kni21 cluster so we can run oc commands against the hosted cluster.
 
 ~~~bash
 $ oc extract -n kni21 secret/kni21-admin-kubeconfig --to=- > kubeconfig-kni21
 # kubeconfig
 ~~~
 
-Now lets go ahead and set our KUBECONFIG variable to the kubeconfig we extracted and view the nodes.
+Now lets go ahead and set our KUBECONFIG variable to the kubeconfig we extracted and view the nodes of the hosted cluster.
 
 ~~~bash
 $ export KUBECONFIG=/home/bschmaus/kubeconfig-kni21
@@ -73,15 +71,13 @@ asus3-vm3.kni.schmaustech.com   Ready    worker   74m   v1.24.0+b62823b
 
 We can see from the above output that all our worker nodes for the hosted cluster kni21 are in a ready state.   I should point out here that we do not see any control plane nodes listed and this is because there are no control plane nodes only control plane service pods which reside on our hub cluster.
 
-Let's move onto installing and configuring our workloads.
-
 ## Deploying Local Storage Operator
 
-Now that we know our hosted cluster is ready to consume workloads lets get started by installing the Local Storage Operator.  When we are finished we should have the results similar to what is in the following diagram in that a local storage PV will be created for every sdb block device.
+Now that we know our hosted cluster is ready to consume workloads lets get started by installing the Local Storage Operator.  When we are finished we should have the results similar to what is in the following diagram in that a local storage PV will be created for every sdb block device on every worker node.
 
 <img src="hosted2.jpeg" style="width: 800px;" border=0/>
 
-I already know that in each of my worker nodes I have a secondary 120GB block device called sdb so I will skip using oc debug to check for the block devices.   Next I will go ahead and label my worker nodes for storage.
+I already know that in each of my worker nodes I have a secondary 120GB block device called sdb so I will skip using oc debug to check for the block devices.   However I still need to label my worker nodes for storage with an appropriate storage label.
 
 ~~~bash
 $ oc label nodes asus3-vm1.kni.schmaustech.com cluster.ocs.openshift.io/openshift-storage=''
@@ -92,7 +88,7 @@ $ oc label nodes asus3-vm3.kni.schmaustech.com cluster.ocs.openshift.io/openshif
 node/asus3-vm3.kni.schmaustech.com labeled
 ~~~
 
-Now let's confirm the label changes before we proceed:
+Now let's confirm the label changes before we proceed.
 
 ~~~bash
 $ oc get nodes -l cluster.ocs.openshift.io/openshift-storage=
@@ -102,7 +98,7 @@ asus3-vm2.kni.schmaustech.com   Ready    worker   83m   v1.24.0+b62823b
 asus3-vm3.kni.schmaustech.com   Ready    worker   82m   v1.24.0+b62823b
 ~~~
 
-Now we can proceed by installing the Local Storage Operator which will be used by OpenShift Data Foundation.  The first thing we need to do is create the namespace of it by creating the custom resource yaml and then applying it to the hosted cluster.
+Now we can continue by installing the Local Storage Operator which will be used by OpenShift Data Foundation.  The first thing we need to do is create the namespace by creating the custom resource yaml and then applying it to the hosted cluster.
 
 ~~~bash
 cat << EOF > ~/openshift-local-storage-namespace.yaml
@@ -117,7 +113,7 @@ $ oc create -f ~/openshift-local-storage-namespace.yaml
 namespace/openshift-local-storage created
 ~~~
 
-Next we can create the storage group customer resource yaml and then apply that as well to the hosted cluster.
+Next we can create the storage group custome resource yaml and then apply that as well to the hosted cluster.
 
 ~~~bash
 cat << EOF > ~/openshift-local-storage-group.yaml
@@ -135,7 +131,7 @@ oc create -f ~/openshift-local-storage-group.yaml
 operatorgroup.operators.coreos.com/local-operator-group created
 ~~~
 
-Now we can proceed to create a subscription for the Local Storage Operator and apply that to the hosted cluster.
+Now we can create a subscription for the Local Storage Operator and apply that to the hosted cluster.
 
 ~~~bash
 $ cat << EOF > ~/openshift-local-storage-subscription.yaml
@@ -164,7 +160,7 @@ NAME                                      READY   STATUS    RESTARTS   AGE
 local-storage-operator-864768c8cb-slgc2   1/1     Running   0          60s
 ~~~
 
-Now that we have the local storage operator installed lets make a LocalVolume storage definition file that will use the disk device in each node. We can  see that this is set to create a local volume on every host from the block device sdb where the selector key matches cluster.ocs.openshift.io/openshift-storage. If we had additional devices on the worker nodes for example: sdd and sde, we would just list those below the devicePaths to also be incorporated into our configuration.
+Now that we have the local storage operator installed lets make a storage definition yaml file that will use the disk device in each node. We can see that this configuration is set to create a local volume on every host from the block device sdb where the selector key matches cluster.ocs.openshift.io/openshift-storage. If we had additional devices on the worker nodes for example: sdd and sde, we would just list those below the devicePaths to also be incorporated into our configuration.
 
 ~~~bash
 $ cat << EOF > ~/local-storage.yaml
@@ -189,7 +185,7 @@ spec:
 EOF
 ~~~
 
-Now we can go ahead and create the assets for this local-storage configuration using the local-storage.yaml we created above.
+Now we can go ahead and apply the local-storage configuration using the storage definition file we created above.
 
 ~~~bash
 $ oc create -f ~/local-storage.yaml
@@ -207,7 +203,7 @@ diskmaker-manager-x8qgz                   2/2     Running   0          32m   10.
 local-storage-operator-864768c8cb-slgc2   1/1     Running   0          36m   10.133.0.19   asus3-vm3.kni.schmaustech.com   <none>           <none>
 ~~~
 
-We can also see that three PVs were also created one for each worker node reflecting the use of the sdb device on each worker node in the hosted cluster.
+We can also see that three PVs were also created, one for each worker node, reflecting the use of the sdb device on each worker node in the hosted cluster.
 
 ~~~bash
 $ oc get pv -o wide
@@ -225,11 +221,11 @@ NAME         PROVISIONER                    RECLAIMPOLICY   VOLUMEBINDINGMODE   
 localblock   kubernetes.io/no-provisioner   Delete          WaitForFirstConsumer   false                  22m
 ~~~
 
-We have now completed installing and configuring the Local Storage Operator.   We can now move onto our next layer of our workload stack.
+We have now completed installing and configuring the Local Storage Operator.
 
 ## Deploying OpenShift Data Foundation
 
-At this point we have now completed the prerequisites of installing the Local Storage Operator. We can now turn our attention to installing OpenShift Data Foundation which will consume those local storage PVs and leverage them in a storage cluster which will provide block, object and file.  The following diagram depicts a high level overview of where those storage cluster components reside.
+At this point we have now completed the prerequisites of installing the Local Storage Operator. We can now turn our attention to installing OpenShift Data Foundation which will consume those local storage PVs and leverage them in a storage cluster which will provide block, object and file storage classes.  The following diagram depicts a high level overview of where those storage cluster components reside.
 
 <img src="hosted3.jpeg" style="width: 800px;" border=0/>
 
@@ -282,7 +278,7 @@ spec:
 EOF
 ~~~
 
-Lets go ahead and create the operator group and subscription from the resource yaml file we created:
+Let's go ahead and create the operator group and subscription from the resource yaml file we created.
 
 ~~~bash
 $ oc create -f ~/openshift-storage-subscription.yaml
@@ -304,7 +300,7 @@ odf-operator-controller-manager-65d8c775c4-k4w6h   2/2     Running   0          
 rook-ceph-operator-7b55877858-x5q77                1/1     Running   0          2m50s
 ~~~
 
-Now that we know the operator is deployed (and the associated pods are running) we can proceed to creating a hyperconverged OpenShift Data Foundation cluster.  To do this we first need to create a storage cluster yaml file that will allow us to consume each of the pvs per worker node that we configured via the Local Storage Operator.  We will also configure cpu, memory, replicas and which components the operator will manage in this file.
+Now that we know the operator is deployed (and the associated pods are running) we can proceed to creating a hyperconverged OpenShift Data Foundation cluster.  To do this we first need to create a storage cluster yaml file that will allow us to consume each of the pvs per worker node that we configured via the Local Storage Operator.  We will also configure cpu, memory, replicas and which components the operator will manage in this file from the OpenShift Data Foundation perspective.
 
 ~~~bash
 $ cat << EOF > ~/openshift-storage-cluster.yaml
@@ -364,18 +360,16 @@ spec:
 EOF
 ~~~
 
-If we look at the above storage cluster yaml the key things that stand out are the count, the storage size, storageclass and replica.  Because we have 2 pvs on each worker that we want included in our storage cluster from the local storage storage class we set the replica to 3 and the count to 2.   We also specify that we want to use 100Gi pvs from the localblock storage class.  We can also note the resource limits on CPU and memory to ensure that the storage cluster does not use all the resources on the worker nodes.
+If we look at the above storage cluster yaml the key things that stand out are the count, the storage size, storageclass and replica.  Because we have one pvs on each worker that we want included in our storage cluster from the local storage storage class we set the replica to three and the count to two.   We also specify that we want to use 120Gi pvs from the localblock storage class.  We can also note the resource limits on CPU and memory to ensure that the storage cluster does not use all the resources on the worker nodes.
 
-With the storage cluster yaml created lets go ahead and create the storage cluster:
+With the storage cluster yaml created lets go ahead and create the storage cluster.
 
 ~~~bash
 $ oc create -f ~/openshift-storage-cluster.yaml
 storagecluster.ocs.openshift.io/ocs-storagecluster created
 ~~~
 
-If we run an oc get pods for the openshift-storage namespace we can see pods are starting to create to build out the storage cluster.  If one wanted to watch this continuously we could throw a watch command in front of the oc command.   It will take a few minutes to instantiate the cluster nevertheless.
-
-Finally after about 5 minutes we can see all the pods that have been generated to deploy the OCS storage cluster:
+It will take a few minutes to instantiate the cluster but  after about 5 minutes we can see all the pods that have been generated to deploy the hyperconverged storage cluster.
 
 ~~~bash
 $ oc get pods -n openshift-storage
@@ -417,7 +411,7 @@ rook-ceph-osd-prepare-ocs-deviceset-2-data-0vbtdz-5kxb8           0/1     Comple
 rook-ceph-rgw-ocs-storagecluster-cephobjectstore-a-79bcfc7xgfst   2/2     Running     0             2m2s
 ~~~
 
-We can also confirm this from the command line by issuing an oc get storageclass.  We should see 4 new storageclasses: one for block (rbd), two for object (rgw/nooba) and one for file(cephfs).  
+We can also confirm the installation is complete by looking at the storageclasses.  We should see four new storageclasses: one for block (rbd), two for object (rgw/nooba) and one for file(cephfs).  
 
 ~~~bash
 $ oc get storageclass
@@ -495,7 +489,7 @@ operatorgroup.operators.coreos.com/kubevirt-hyperconverged-group created
 subscription.operators.coreos.com/hco-operatorhub created
 ~~~
 
-After a few minutes we can see the operator and supporting pods for OpenShift Virtualization running.
+Within a few minutes we can see the operator and supporting pods for OpenShift Virtualization running.
 
 ~~~bash
 $ oc get pods -n openshift-cnv
@@ -509,7 +503,6 @@ hyperconverged-cluster-cli-download-c5976f57-w7rfn   1/1     Running   0        
 ssp-operator-7d54856c95-wwsz9                        1/1     Running   0          2m21s
 tekton-tasks-operator-5965f7fb8d-dhz7s               1/1     Running   0          2m19s
 ~~~
-
 
 At this point we are now ready to to deploy a hyperconverged configuration for virtualization which will consume the OpenShift Data Foundation storage we configured earlier in the blog.  To configure a hyperconverged deployment we first need to create the following custom resource yaml.
 
@@ -587,7 +580,7 @@ NAME                                       DISPLAY                    VERSION   
 kubevirt-hyperconverged-operator.v4.11.0   OpenShift Virtualization   4.11.0    kubevirt-hyperconverged-operator.v4.10.5   Succeeded
 ~~~
 
-This completes the installation and configuration of OpenShift  Virtualization.
+This completes the installation and configuration of OpenShift Virtualization.
 
 ## Launch Virtual Machine
 
